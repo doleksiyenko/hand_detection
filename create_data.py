@@ -61,11 +61,18 @@ def backgroundRemover(current_frame, reference):
     return current_frame_gray
 
 
+# Background subtraction methods
+# cv2.BackgroundSubtractorMOG2
+
 if __name__ == "__main__":
+    if cv2.useOptimized is False:
+        cv2.setUseOptimized(True)
+
     cap = cv2.VideoCapture(0)
 
     ret, frame = cap.read()
     reference_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
     while(True):
         # capture the frame
         ret, frame = cap.read()
