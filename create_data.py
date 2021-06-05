@@ -7,7 +7,6 @@ sample_area = ((0, 0), (0, 25), (25, 0), (25, 25))
 sample_area_dimension = 25
 sampled = False
 
-
 def sample_skin(samples):
     '''
     Given a frame, returns the higher and lower threshold for finding the skin 
@@ -24,6 +23,10 @@ def sample_skin(samples):
     sample_avg_left = np.mean(np.array([sample_1_avg, sample_3_avg]), axis=0)
     sample_avg_right = np.mean(np.array([sample_2_avg, sample_4_avg]), axis=0)
 
+    '''
+    This sampling uses the HSV format as to have more accurate results in changing lighting environments
+    '''
+
     hLowThreshold = min(sample_avg_left[0], sample_avg_right[0]) - low_threshold_offset
     hHighThreshold = max(sample_avg_left[0], sample_avg_right[0]) + high_threshold_offset
     sLowThreshold = min(sample_avg_left[1], sample_avg_right[1]) - low_threshold_offset
@@ -34,6 +37,7 @@ def sample_skin(samples):
     hsv_thresh = np.array([hLowThreshold, sLowThreshold, vLowThreshold, \
         hHighThreshold, sHighThreshold, vHighThreshold])
     return hsv_thresh
+
 
 
 def backgroundRemover(current_frame, reference):
