@@ -51,8 +51,9 @@ if not capture.isOpened():
 backSubtractor = cv.createBackgroundSubtractorKNN()
 faceDetection = cv.CascadeClassifier()
 sampled = False
-sampling_area = ((0, 0), (0, 50), (50, 0), (50, 50))
-sample_area_dimension = 50
+sample_area_dimension = 25
+sampling_area = ((0, 0), (0, sample_area_dimension), (sample_area_dimension, 0), (sample_area_dimension, sample_area_dimension))
+
 
 if __name__ == '__main__':
     while True:
@@ -91,6 +92,11 @@ if __name__ == '__main__':
 
         if sampled is True:
             frame_hsv_threshold = cv.inRange(frame_hsv, hsv_thresh[0], hsv_thresh[1])
+            contours, hierarchy = cv.findContours(frame_hsv_threshold, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+            # find the largest contour by area
+            max_contour = max(contours, key=cv.contourArea) 
+            x, y, w, h = cv.boundingRect(max_contour) # find the bounding box of the max contour
+            cv.rectangle(frame_hsv_threshold, (x, y), (x + w, y + h), (255, 0, 0), thickness=2) # draw a rectangle on the frame
             cv.imshow('Frame Masked', frame_hsv_threshold)
 
     capture.release()
