@@ -1,5 +1,7 @@
+import sys
 import cv2 as cv
 import numpy as np
+from skimage.transform import rescale
 import os
 
 
@@ -37,14 +39,69 @@ def sample_skin(samples):
 
 def clean_image(image):
     '''
-    Cleans up a grayscale image by applying opening then closing.
+    Cleans up a grayscale image by applying closing.
     '''
     kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, (10, 10))
-    # opening = cv.morphologyEx(image, cv.MORPH_OPEN, kernel)
-    closing_kernel = np.ones((6, 6), np.uint8)
     closing = cv.morphologyEx(image, cv.MORPH_CLOSE, kernel)
-    # blurred = cv.blur(closing, (3,3))
     return closing
+
+
+def resize_image(image):
+    '''
+    Resize image to 144p: (256, 144)
+    '''
+    dimension = image.shape
+    
+    height_diff = 144 - (dimension[0] % 144) # how far is the height from the next multiple of 144
+    width_diff = 256 - (dimension[1] % 256) # how far is the width from the next multiple of 256
+
+    # change the height and width so that they are multiples of 256 and 144 respectively
+    target_width = dimension[1] + width_diff
+    target_height = dimension[0] + height_diff
+
+    # scale the image down to get size of (256, 144)
+    scale_factor_w = target_width / 256
+    scale_factor_h = target_height / 144
+
+    scale_factor = scale_factor_w
+
+    if (scale_factor_w != scale_factor_h):
+        max_scale_factor = max(scale_factor_w, scale_factor_h)
+        min_scale_factor = min(scale_factor_w, scale_factor_h)
+
+        if min_scale_factor == scale_factor_w:
+            target_width *= (max_scale_factor / min_scale_factor)
+        else:
+            target_height *= (max_scale_factor / min_scale_factor)
+
+        scale_factor = max_scale_factor
+    
+    new_frame = np.zeros((int(target_height), int(target_width)))
+    new_frame[:dimension[0], :dimension[1]] = image   
+    resized_image = rescale(new_frame, (1 / scale_factor), anti_aliasing=False)
+
+    return resized_image
+
+
+
+def save_image(image, name):
+    '''
+    Save the current bounding box frame <image> to the directory /dataset
+    '''
+    # transform the image into 16:9 aspect ratio
+    resized_image = resize_image(image) 
+    # save the image into the current directory
+    cv.imwrite(os.getcwd() + f'/{name}.png', resized_image)
+    print("Saved into " + os.getcwd())
+
+
+'''
+Have the colour of the hand be different from the colour of the rest of the body, so that we can sample the
+colour of the hand, and after applying the background subtractor, we search for the colour of the hand in this
+image.
+
+after isolating the hand, we can find the convex hull / rectangle around this hand, and then crop this image, and sample it
+'''
 
 capture = cv.VideoCapture(0)
 if not capture.isOpened():
@@ -57,29 +114,38 @@ sampled = False
 sample_area_dimension = 25
 sampling_area = ((0, 0), (0, sample_area_dimension), (sample_area_dimension, 0), (sample_area_dimension, sample_area_dimension))
 
-'''
-Have the colour of the hand be different from the colour of the rest of the body, so that we can sample the
-colour of the hand, and after applying the background subtractor, we search for the colour of the hand in this
-image.
-
-after isolating the hand, we can find the convex hull / rectangle around this hand, and then crop this image, and sample it
-'''
-
 if __name__ == '__main__':
+    # provide the name of which images the program is creating as an argument
+    if (len(sys.argv) != 2):
+        print("Pass in the name of gesture which program will capture.")
+        exit(1)
+
+    file_name = sys.argv[1]
+    print(f"Will save files as {file_name}.")
+
     if not os.path.isdir('dataset'):
         os.mkdir('dataset')
-        print("Created /dataset")
+        print('Created /dataset')
     
     os.chdir('dataset')
-    print("Navigating to /dataset")
+    print('Navigating to /dataset')
 
+    if not os.path.isdir(f'{file_name}'):
+        os.mkdir(f'{file_name}')
+        print(f'Created /{file_name}')
+    
+    os.chdir(f'{file_name}')
+    print(f'Navigating to {file_name}')
+
+    image_number = 0 # for the file name being saved
+    captured_iteration = 0 # how many iterations of while loop have been completed
+    
     while True:
         ret, frame = capture.read()
         if frame is None:
             break
 
         frame = cv.GaussianBlur(frame, (5, 5), 1)
-        cv.imshow('Gaussian Blur', frame)
         frame_hsv_bgrd = cv.cvtColor(frame, cv.COLOR_BGR2HSV)  
         fgMask = backSubtractor.apply(frame)
 
@@ -91,10 +157,13 @@ if __name__ == '__main__':
         if cv.waitKey(1) & 0xFF == ord('q'):
             break
 
-        # press 'c' to capture and save a sample image
+        # press 'c' to capture a single image
         if (sampled is True) and (cv.waitKey(1) & 0xFF == ord('c')):
-            cv.imwrite(os.getcwd() + '/test.png', frame_hsv_threshold)
-            print(os.getcwd())
+            save_image(bounding_box_frame, f'{file_name}_{image_number}')
+            image_number += 1
+        
+        # press 'n' to capture 1000 images with 50 ms capture time for single image (i.e 50 seconds)
+        if (sampled is True) and (cv.waitKey(1) & 0xFF == ord('n')):
 
         # press 's' to sample the colour of the skin within the bounded area
         if (sampled is False) and (cv.waitKey(1) & 0xFF == ord('s')):
@@ -124,12 +193,11 @@ if __name__ == '__main__':
             x, y, w, h = cv.boundingRect(max_contour) # find the bounding box of the max contour
             cv.rectangle(cleaned_frame, (x, y), (x + w, y + h), (255, 0, 0), thickness=2) # draw a rectangle on the frame
 
-            # create a frame that is the cropped version of frame, only inside the bounding box
-            bounding_box_frame = frame_hsv_threshold[y: y + h, x: x + w]
+            
+            bounding_box_frame = cleaned_frame[y: y + h, x: x + w]
 
             cv.imshow('Cleaned image', cleaned_frame)
-            # cv.imshow('Frame Masked', frame_hsv_threshold)
-            # cv.imshow('Bounding Box Frame', bounding_box_frame)
+            cv.imshow('Bounding Box Frame', bounding_box_frame)
 
     capture.release()
     cv.destroyAllWindows()
