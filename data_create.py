@@ -4,6 +4,8 @@ import numpy as np
 from skimage.transform import rescale
 import os
 
+import tensorflow as tf
+
 
 def sample_skin(samples):
     '''
@@ -93,6 +95,12 @@ def save_image(image, name):
     cv.imwrite(os.getcwd() + f'/{name}.png', resized_image)
     
 
+def predict_gesture():
+    '''
+    Return the predicted gesture given by the trained TF model.
+    '''
+    pass
+
 
 '''
 Have the colour of the hand be different from the colour of the rest of the body, so that we can sample the
@@ -129,6 +137,9 @@ if __name__ == '__main__':
     os.chdir('dataset')
     print('Navigating to /dataset')
 
+    # load in the model
+    model = tf.keras.models.load_model('2-gesture-CNN.model')
+
     if not os.path.isdir(f'{file_name}'):
         os.mkdir(f'{file_name}')
         print(f'Created /{file_name}')
@@ -163,9 +174,10 @@ if __name__ == '__main__':
             image_number += 1
             print("Saved into " + os.getcwd())
         
-        # press 'n' to capture 1000 images with 50 ms capture time for single image (i.e 50 seconds)
+        # press 'n' to capture 1000 images
         if (sampled is True) and (cv.waitKey(1) & 0xFF == ord('n')):
             capturing = True
+
            
         if captured_iteration == 1000:
             capturing = False
@@ -210,6 +222,19 @@ if __name__ == '__main__':
 
             cv.imshow('Cleaned image', cleaned_frame)
             cv.imshow('Bounding Box Frame', bounding_box_frame)
+
+            resized_bounding_frame = resize_image(bounding_box_frame)
+            resized_bounding_frame = resized_bounding_frame.reshape(-1, 144, 256, 1)
+
+            gesture_prediction = model.predict([resized_bounding_frame])
+            score = tf.nn.softmax(gesture_prediction[0])
+
+            if score[0] > 0.7:
+                print("palm")
+            if score[1] > 0.7:
+                print('thumb')
+
+            # print(score)
 
     capture.release()
     cv.destroyAllWindows()
